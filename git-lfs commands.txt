@@ -1,0 +1,6 @@
+brew install git-lfs
+git lfs install
+git lfs clone https://github.com/Sven-Siyuan-Wang/AI-Project.git
+
+PUSH:
+https://git-lfs.github.com/
