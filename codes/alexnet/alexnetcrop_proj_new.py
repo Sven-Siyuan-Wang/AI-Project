@@ -13,25 +13,8 @@ from alexnet_proj import *
 
 
 def preproc_py2(imname,shorterside):
-  
-  
   pilimg = Image.open(imname)
-  '''
-  w,h=pilimg.size
-  
-  #print(w,h)
 
-  if w > h:
-    longerside= np.int32(math.floor(float(shorterside)/float(h)*w))
-    neww=longerside
-    newh=shorterside
-  else:
-    longerside= np.int32(math.floor(float(shorterside)/float(w)*h))
-    newh=longerside
-    neww=shorterside    
-  resimg=pilimg.resize((neww,newh))
-  im = np.array(resimg,dtype=np.float32)
-  '''
   return pilimg
 
 def random_patch(im,hsize,wsize,n):
@@ -50,12 +33,22 @@ def sliding_patch(im,hsize,wsize,sliding_window_h,sliding_window_w):
   patches = []
   current_h = 0
   current_w = 0
+  down  = 0
+  countw = 0
+  counth = 0
   while True:
-    if current_h+hsize > h or current_w+wsize > w:
+    if current_h+hsize > h and current_w+wsize > w:
       break
-    patches.append(im[int(current_h):int(current_h+hsize),int(current_w):int(current_w+wsize),:])
-    current_h += sliding_window_h
-    current_w += sliding_window_w
+    elif current_h+hsize <= h and current_w+wsize <= w:
+      patches.append(im[int(current_h):int(current_h+hsize),int(current_w):int(current_w+wsize),:])
+
+    if current_w+wsize > w and current_h+sliding_window_h+hsize <= h:
+      current_h += sliding_window_h
+      current_w = 0
+    elif current_h+hsize <= h:
+      current_w += sliding_window_w
+  print ('patchsize',len(patches))
+  print ('patchsize',patches[-1].shape)
   return patches
 
 
@@ -67,19 +60,19 @@ def load_image(path, split, res, part, BATCH_SIZE = 5):
   with open(filename_train) as f:
     train = f.readlines()
   train_labels = [int(x.strip().split(' ')[1]) for x in train]
-  train_images = ['./BreaKHis_data/'+x.strip().split(' ')[0] for x in train]
+  train_images = [path+x.strip().split(' ')[0] for x in train]
   print('Training set size: ' + str(len(train_images)))
 
   with open(filename_val) as f:
     val = f.readlines()
   val_labels = [int(x.strip().split(' ')[1]) for x in val]
-  val_images = ['./BreaKHis_data/'+x.strip().split(' ')[0] for x in val]
+  val_images = [path+x.strip().split(' ')[0] for x in val]
   print('Validation set size: ' + str(len(val_images)))
 
   with open(filename_val) as f:
     test = f.readlines()
   test_labels = [int(x.strip().split(' ')[1]) for x in test]
-  test_images = ['./BreaKHis_data/'+x.strip().split(' ')[0] for x in test]
+  test_images = [path+x.strip().split(' ')[0] for x in test]
   print('Test set size: ' + str(len(test_images)))
 
   NUM_CHANNELS = 3
@@ -119,7 +112,7 @@ def run3(path='./BreaKHis_data'):
   
   num=500 # 500 or 200
   batchsize=5
-  num_classes=1000
+  num_classes=2
 
   keep_prob=1.
   skip_layer=[]
@@ -130,14 +123,13 @@ def run3(path='./BreaKHis_data'):
   train_image_batch, train_label_batch = load_image(path, 1, 200, 'train', BATCH_SIZE=batchsize)
 
   with tf.Session() as sess:
-    hsize = 32  ###############################################################
-    wsize = 32  ###############################################################
+    hsize = 64  ###############################################################
+    wsize = 64  ###############################################################
     x = tf.placeholder(tf.float32, [batchsize, hsize, wsize, 3])
     net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path = 'DEFAULT')
     out = net.fc8
     
-    #init = tf.global_variables_initializer()
-    init = tf.initialize_all_variables()
+    init = tf.global_variables_initializer()
     sess.run(init)
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
@@ -151,7 +143,8 @@ def run3(path='./BreaKHis_data'):
     for i in range(num):
     
       next_image,next_label = get_next_batch(sess, train_image_batch, train_label_batch)
-
+      print('original')
+      print(next_image[:,0,0,:])
       #print (next_label)
       #print (totalim.shape,lb.shape)
       #print (lb)
@@ -170,8 +163,8 @@ def run3(path='./BreaKHis_data'):
           im=im[:,:,0:3]
 
         num_patches = 10
-        sliding_window_h = 16 ###############################################################
-        sliding_window_w = 16 ###############################################################
+        sliding_window_h = 32 ###############################################################
+        sliding_window_w = 32 ###############################################################
         #patches = random_patch(im, hsize, wsize, num_patches)
         patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
 
@@ -191,30 +184,32 @@ def run3(path='./BreaKHis_data'):
       for crop in range(len(patches)):
         predict_valuess.append(sess.run(out, feed_dict={x: totalim[crop]}))
         # has shape batchsize,numclasses
-        #print(predict_values.shape)
-      predict_values = np.mean(predict_valuess,0)
-    
+      #print (len(patches))
+      #print(np.array(predict_valuess).shape)
+      predict_values = np.mean(predict_valuess,axis=0)
+      print(predict_values.shape)
+
+      '''
       for ct in range(len(next_image)):
       
-        ind = np.argpartition(predict_values[ct,:], -5)[-5:] #get highest ranked indices to check top 5 error 
+        #ind = np.argpartition(predict_values[ct,:], -5)[-5:] #get highest ranked indices to check top 5 error
         index=np.argmax(predict_values[ct,:]) #get highest ranked index to check top 1 error
         #print(ind,predict_values[ct,ind],index)
         
 
         if(index==next_label[ct]):
           top1corr+=1.0/(num*batchsize) #times the number of crops
-        if( next_label[ct] in ind):
-          top5corr+=1.0/(num*batchsize) #times the number of crops
-    
+
+        #if( next_label[ct] in ind):
+          #top5corr+=1.0/(num*batchsize) #times the number of crops
+      '''
     coord.request_stop()
     coord.join(threads)
+  return None
 
-  print('top-1 corr', top1corr) 
-  print('top-5 corr', top5corr) 
-  
   #print ('np.max(predict_values)', np.max(predict_values))
   #print ('classindex: ',np.argmax(predict_values))
   #print ('classlabel: ', cls[np.argmax(predict_values)])
 
 if __name__=='__main__':
-  run3('./BreaKHis_data/')
+  run3(path='/Users/apple/BreaKHis_data/')

@@ -46,30 +46,15 @@ class AlexNet(object):
     pool3 = avg_pool(conv3, 3, 3, 2, 2, padding='VALID', name='pool3')
     norm3 = lrn(pool3, 2, 2e-05, 0.75, name='norm3')
 
-    '''
-    # 3rd Layer: Conv (w ReLu)
-    conv3 = conv(norm2, 3, 3, 384, 1, 1, name = 'conv3')
-  
-    # 4th Layer: Conv (w ReLu) splitted into two groups
-    conv4 = conv(conv3, 3, 3, 384, 1, 1, groups = 2, name = 'conv4')
-  
-    # 5th Layer: Conv (w ReLu) -> Pool splitted into two groups
-    conv5 = conv(conv4, 3, 3, 256, 1, 1, groups = 2, name = 'conv5')
-    pool5 = max_pool(conv5, 3, 3, 2, 2, padding = 'VALID', name = 'pool5')
-    '''
-
     # 6th Layer: Flatten -> FC (w ReLu) -> Dropout
-    flattened = tf.reshape(norm3, [-1, 3136])
-    fc6 = fc(flattened, 3136, 3136, name='fc6')
+    print (norm3.shape)
+    flattened = tf.reshape(norm3, [-1, 7*7*64])
+    fc6 = fc(flattened, 7*7*64, 7*7*64, name='fc6')
     dropout6 = dropout(fc6, self.KEEP_PROB)
-    '''
-    # 7th Layer: FC (w ReLu) -> Dropout
-    fc7 = fc(dropout6, 5*5*64, 5*5*2, name = 'fc7')
-    dropout7 = dropout(fc7, self.KEEP_PROB)
-    '''
+
     # 8th Layer: FC and return unscaled activations
     # (for tf.nn.softmax_cross_entropy_with_logits)
-    self.fc8 = fc(dropout6, 3136, self.NUM_CLASSES, relu = False, name='fc8')
+    self.fc8 = fc(dropout6, 7*7*64, self.NUM_CLASSES, relu = False, name='fc8')
 
   def load_initial_weights(self,session):
     """
@@ -105,7 +90,7 @@ def conv(x1, filter_height, filter_width, num_filters, stride_y, stride_x, name,
          padding='VALID', groups=1):
   # manual padding
   x = tf.pad(x1, [[0, 0], [2, 2], [2, 2], [0, 0]], "CONSTANT")
-
+  #x = x1
   # Get number of input channels
   input_channels = int(x.get_shape()[-1])
 
