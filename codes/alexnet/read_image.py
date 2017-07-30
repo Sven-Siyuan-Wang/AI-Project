@@ -22,18 +22,18 @@ def load_image(split, res):
   train_images = ['./BreaKHis_data/'+x.strip().split(' ')[0] for x in train]
   print('Training set size: ' + str(len(train_images)))
 
-  with open(filename_train) as f:
+  with open(filename_val) as f:
     val = f.readlines()
   val_y = [int(x.strip().split(' ')[1]) for x in val]
   val_x = [x.strip().split(' ')[0] for x in val]
 
-  with open(filename_train) as f:
+  with open(filename_test) as f:
     test = f.readlines()
   test_y = [int(x.strip().split(' ')[1]) for x in test]
   test_x = [x.strip().split(' ')[0] for x in test]
 
   NUM_CHANNELS = 3
-  BATCH_SIZE = 5
+  BATCH_SIZE = 1
   pilimg = Image.open(train_images[0])
   IMAGE_HEIGHT, IMAGE_WIDTH = pilimg.size
 

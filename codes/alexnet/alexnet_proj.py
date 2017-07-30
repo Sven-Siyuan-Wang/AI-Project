@@ -37,12 +37,12 @@ class AlexNet(object):
     norm1 = lrn(pool1, 2, 2e-05, 0.75, name = 'norm1')
   
     # 2nd Layer: Conv (w ReLu) -> Pool -> Lrn with 2 groups
-    conv2 = conv(norm1, 5, 5, 32, 1, 1, groups = 2, name = 'conv2')
+    conv2 = conv(norm1, 5, 5, 32, 1, 1, groups = 2, padding = 'VALID', name = 'conv2')
     pool2 = avg_pool(conv2, 3, 3, 2, 2, padding = 'VALID', name ='pool2')
     norm2 = lrn(pool2, 2, 2e-05, 0.75, name = 'norm2')
 
     # 3nd Layer: Conv (w ReLu) -> Pool -> Lrn with 2 groups
-    conv3 = conv(norm2, 5, 5, 64, 1, 1, groups=2, name='conv3')
+    conv3 = conv(norm2, 5, 5, 64, 1, 1, groups= 2, padding = 'VALID', name='conv3')
     pool3 = avg_pool(conv3, 3, 3, 2, 2, padding='VALID', name='pool3')
     norm3 = lrn(pool3, 2, 2e-05, 0.75, name='norm3')
 
@@ -72,7 +72,7 @@ class AlexNet(object):
     self.fc8 = fc(dropout6, 9*64, self.NUM_CLASSES, relu = False, name='fc8')
 
   def load_initial_weights(self,session):
-
+    """
     pass
 
     # Load the weights into memory
@@ -99,10 +99,12 @@ class AlexNet(object):
             else:
   
               var = tf.get_variable('weights', trainable = False)
-              session.run(var.assign(data))
+              session.run(var.assign(data))"""
 
-def conv(x, filter_height, filter_width, num_filters, stride_y, stride_x, name,
-         padding='SAME', groups=1):
+def conv(x1, filter_height, filter_width, num_filters, stride_y, stride_x, name,
+         padding='VALID', groups=1):
+  # manual padding
+  x = tf.pad(x1, [[0, 0], [2, 2], [2, 2], [0, 0]], "CONSTANT")
 
   # Get number of input channels
   input_channels = int(x.get_shape()[-1])
@@ -114,10 +116,17 @@ def conv(x, filter_height, filter_width, num_filters, stride_y, stride_x, name,
 
   with tf.variable_scope(name) as scope:
     # Create tf variables for the weights and biases of the conv layer
-    weights = tf.get_variable('weights',
+    if name=="conv2":
+      weights = tf.get_variable('weights',
                               shape = [filter_height, filter_width,
-                              input_channels/groups, num_filters])
-    biases = tf.get_variable('biases', shape = [num_filters])
+                              input_channels/groups, num_filters], 
+                              initializer=tf.random_normal_initializer(0, 0.01))
+    else:
+      weights = tf.get_variable('weights',
+                              shape = [filter_height, filter_width,
+                              input_channels/groups, num_filters], 
+                              initializer=tf.random_normal_initializer(0, 0.0001))
+    biases = tf.get_variable('biases', shape = [num_filters], initializer=tf.constant_initializer(0))
 
 
     if groups == 1:
@@ -145,8 +154,8 @@ def fc(x, num_in, num_out, name, relu = True):
   with tf.variable_scope(name) as scope:
 
     # Create tf variables for the weights and biases
-    weights = tf.get_variable('weights', shape=[num_in, num_out], trainable=True)
-    biases = tf.get_variable('biases', [num_out], trainable=True)
+    weights = tf.get_variable('weights', shape=[num_in, num_out], trainable=True, initializer=tf.random_normal_initializer(0, 0.01))
+    biases = tf.get_variable('biases', [num_out], trainable=True, , initializer=tf.constant_initializer(0))
 
     # Matrix multiply weights and inputs and add bias
     act = tf.nn.xw_plus_b(x, weights, biases, name=scope.name)
