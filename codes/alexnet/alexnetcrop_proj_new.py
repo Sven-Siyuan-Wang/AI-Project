@@ -9,13 +9,14 @@ import math
 from PIL import Image
 from numpy import int32
 
-from alexnet_proj_ori import *
+from alexnet_proj import *
 
 
 def preproc_py2(imname,shorterside):
   
   
   pilimg = Image.open(imname)
+  '''
   w,h=pilimg.size
   
   #print(w,h)
@@ -29,9 +30,8 @@ def preproc_py2(imname,shorterside):
     newh=longerside
     neww=shorterside    
   resimg=pilimg.resize((neww,newh))
-  
-  
   im = np.array(resimg,dtype=np.float32)
+  '''
   return pilimg
 
 def random_patch(im,hsize,wsize,n):
@@ -118,7 +118,7 @@ def get_next_batch(sess, image_batch, label_batch):
 def run3(path='./BreaKHis_data'):
   
   num=500 # 500 or 200
-  batchsize=1
+  batchsize=5
   num_classes=1000
 
   keep_prob=1.
@@ -127,21 +127,22 @@ def run3(path='./BreaKHis_data'):
   
   imagenet_mean = np.array([104., 117., 123.], dtype=np.float32) 
   
-  train_image_batch, train_label_batch = load_image(path, 1, 200, 'train')  
+  train_image_batch, train_label_batch = load_image(path, 1, 200, 'train', BATCH_SIZE=batchsize)
 
   with tf.Session() as sess:
-    tf.global_variables_initializer().run()
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord)
-
-    hsize = 64  ###############################################################
-    wsize = 64  ###############################################################
+    hsize = 32  ###############################################################
+    wsize = 32  ###############################################################
     x = tf.placeholder(tf.float32, [batchsize, hsize, wsize, 3])
     net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path = 'DEFAULT')
     out = net.fc8
     
-    
-    net.load_initial_weights(sess)
+    #init = tf.global_variables_initializer()
+    init = tf.initialize_all_variables()
+    sess.run(init)
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(coord=coord)
+
+    #net.load_initial_weights(sess)
     
     
 
@@ -150,11 +151,14 @@ def run3(path='./BreaKHis_data'):
     for i in range(num):
     
       next_image,next_label = get_next_batch(sess, train_image_batch, train_label_batch)
-      print (next_label)
+
+      #print (next_label)
       #print (totalim.shape,lb.shape)
       #print (lb)
-      for ct,imname in enumerate(ims):
-        im=preproc_py2(imname,250)
+      for ct,imname in enumerate(next_image):
+        #print(ct,imname.shape)
+        #im=preproc_py2(imname,250)
+        im = imname
         #print (im.shape)
         #print (imname)
         
@@ -182,7 +186,7 @@ def run3(path='./BreaKHis_data'):
 
           #print (imcropped.shape,totalim[crop].shape)
           totalim[crop][ct,:,:,:]=imcropped
-
+        #print(np.array(totalim).shape)
       predict_valuess = []
       for crop in range(len(patches)):
         predict_valuess.append(sess.run(out, feed_dict={x: totalim[crop]}))
@@ -190,16 +194,16 @@ def run3(path='./BreaKHis_data'):
         #print(predict_values.shape)
       predict_values = np.mean(predict_valuess,0)
     
-      for ct in range(len(ims)):
+      for ct in range(len(next_image)):
       
         ind = np.argpartition(predict_values[ct,:], -5)[-5:] #get highest ranked indices to check top 5 error 
         index=np.argmax(predict_values[ct,:]) #get highest ranked index to check top 1 error
-        print(ind,predict_values[ct,ind],index)
+        #print(ind,predict_values[ct,ind],index)
         
 
-        if(index==lb[ct]):
+        if(index==next_label[ct]):
           top1corr+=1.0/(num*batchsize) #times the number of crops
-        if( lb[ct] in ind):
+        if( next_label[ct] in ind):
           top5corr+=1.0/(num*batchsize) #times the number of crops
     
     coord.request_stop()

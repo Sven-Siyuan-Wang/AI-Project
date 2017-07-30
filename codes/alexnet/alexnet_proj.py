@@ -59,8 +59,8 @@ class AlexNet(object):
     '''
 
     # 6th Layer: Flatten -> FC (w ReLu) -> Dropout
-    flattened = tf.reshape(norm3, [-1, 9*64])
-    fc6 = fc(flattened, 9*64, 9*64, name='fc6')
+    flattened = tf.reshape(norm3, [-1, 3136])
+    fc6 = fc(flattened, 3136, 3136, name='fc6')
     dropout6 = dropout(fc6, self.KEEP_PROB)
     '''
     # 7th Layer: FC (w ReLu) -> Dropout
@@ -69,7 +69,7 @@ class AlexNet(object):
     '''
     # 8th Layer: FC and return unscaled activations
     # (for tf.nn.softmax_cross_entropy_with_logits)
-    self.fc8 = fc(dropout6, 9*64, self.NUM_CLASSES, relu = False, name='fc8')
+    self.fc8 = fc(dropout6, 3136, self.NUM_CLASSES, relu = False, name='fc8')
 
   def load_initial_weights(self,session):
     """
@@ -126,7 +126,7 @@ def conv(x1, filter_height, filter_width, num_filters, stride_y, stride_x, name,
                               shape = [filter_height, filter_width,
                               input_channels/groups, num_filters], 
                               initializer=tf.random_normal_initializer(0, 0.0001))
-    biases = tf.get_variable('biases', shape = [num_filters], initializer=tf.constant_initializer(0))
+    biases = tf.get_variable('biases', shape = [num_filters],initializer=tf.constant_initializer(0))
 
 
     if groups == 1:
@@ -155,7 +155,7 @@ def fc(x, num_in, num_out, name, relu = True):
 
     # Create tf variables for the weights and biases
     weights = tf.get_variable('weights', shape=[num_in, num_out], trainable=True, initializer=tf.random_normal_initializer(0, 0.01))
-    biases = tf.get_variable('biases', [num_out], trainable=True, , initializer=tf.constant_initializer(0))
+    biases = tf.get_variable('biases', shape=[num_out], trainable=True, initializer=tf.constant_initializer(0))
 
     # Matrix multiply weights and inputs and add bias
     act = tf.nn.xw_plus_b(x, weights, biases, name=scope.name)
