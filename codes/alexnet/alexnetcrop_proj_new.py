@@ -33,22 +33,17 @@ def sliding_patch(im,hsize,wsize,sliding_window_h,sliding_window_w):
   patches = []
   current_h = 0
   current_w = 0
-  down  = 0
-  countw = 0
-  counth = 0
   while True:
-    if current_h+hsize > h and current_w+wsize > w:
-      break
-    elif current_h+hsize <= h and current_w+wsize <= w:
+    if current_h+hsize <= h and current_w+wsize <= w:
       patches.append(im[int(current_h):int(current_h+hsize),int(current_w):int(current_w+wsize),:])
 
     if current_w+wsize > w and current_h+sliding_window_h+hsize <= h:
       current_h += sliding_window_h
       current_w = 0
-    elif current_h+hsize <= h:
+    elif current_h+hsize <= h and current_w+sliding_window_w+wsize <= h:
       current_w += sliding_window_w
-  print ('patchsize',len(patches))
-  print ('patchsize',patches[-1].shape)
+    else:
+      break
   return patches
 
 
@@ -62,6 +57,7 @@ def load_image(path, split, res, part, BATCH_SIZE = 5):
   train_labels = [int(x.strip().split(' ')[1]) for x in train]
   train_images = [path+x.strip().split(' ')[0] for x in train]
   print('Training set size: ' + str(len(train_images)))
+
 
   with open(filename_val) as f:
     val = f.readlines()
@@ -143,9 +139,6 @@ def run3(path='./BreaKHis_data'):
     for i in range(num):
     
       next_image,next_label = get_next_batch(sess, train_image_batch, train_label_batch)
-      print('original')
-      print(next_image[:,0,0,:])
-      #print (next_label)
       #print (totalim.shape,lb.shape)
       #print (lb)
       for ct,imname in enumerate(next_image):
@@ -167,7 +160,6 @@ def run3(path='./BreaKHis_data'):
         sliding_window_w = 32 ###############################################################
         #patches = random_patch(im, hsize, wsize, num_patches)
         patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
-
         totalim = []
         for numbercrops in range(len(patches)):
           totalim.append(np.zeros((batchsize, hsize, wsize, 3)))
@@ -187,7 +179,6 @@ def run3(path='./BreaKHis_data'):
       #print (len(patches))
       #print(np.array(predict_valuess).shape)
       predict_values = np.mean(predict_valuess,axis=0)
-      print(predict_values.shape)
 
       '''
       for ct in range(len(next_image)):
@@ -203,17 +194,6 @@ def run3(path='./BreaKHis_data'):
         #if( next_label[ct] in ind):
           #top5corr+=1.0/(num*batchsize) #times the number of crops
       '''
-
-      labels_placeholder = tf.placeholder(tf.int64, shape=(batch_size))
-      preds_placeholder = tf.placeholder(tf.float64, shape=(batch_size))
-      cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels_placeholder, logits=preds_placeholder, name='cross-entropy')
-      loss =tf.reduce_mean(cross_entropy, name='cross-entropy_mean')
-
-      optimizer = tf.train.AdamOptimizer(learning_rate=0.000001, beta1=0.9, beta2=0.9, epsilon=(1.0/2014.0), name='Adam')
-      train_op = optimizer.minimize(loss)
-      sess.run([train_op, loss], feed_dict={labels_placeholder: next_label, preds_placeholder:predict_values})
-
-
     coord.request_stop()
     coord.join(threads)
   return None
@@ -222,5 +202,85 @@ def run3(path='./BreaKHis_data'):
   #print ('classindex: ',np.argmax(predict_values))
   #print ('classlabel: ', cls[np.argmax(predict_values)])
 
+
+def run_training(path='./BreaKHis_data'):
+  num = 500  # 500 or 200
+  batchsize = 260 ###
+  num_classes = 2
+
+  num_patches = 5
+  batchsize = 260
+  keep_prob = 1.
+  skip_layer = []
+  is_training = True
+
+  imagenet_mean = np.array([104., 117., 123.], dtype=np.float32)
+
+  train_image_batch, train_label_batch = load_image(path, 1, 200, 'train', BATCH_SIZE=batchsize)
+  hsize = 64  ###############################################################
+  wsize = 64  ###############################################################
+  sliding_window_h = 32  ###############################################################
+  sliding_window_w = 32  ###############################################################
+
+  x = tf.placeholder(tf.float32, [batchsize, hsize, wsize, 3])
+  net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path='DEFAULT')
+  out = net.fc8
+  labels_placeholder = tf.placeholder(tf.int64, shape=(1))
+  #preds_placeholder = tf.placeholder(tf.float64, shape=(batchsize))
+  pred = [tf.reduce_mean(net.fc8,axis=0)]
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred,
+                                                                 labels=labels_placeholder,
+                                                                 name='cross-entropy')
+  loss = tf.reduce_mean(cross_entropy, name='cross-entropy_mean', axis=0)
+
+  optimizer = tf.train.AdamOptimizer(learning_rate=0.000001, beta1=0.9, beta2=0.9, epsilon=(1.0 / 2014.0),
+                                     name='Adam')
+  train_op = optimizer.minimize(loss)
+
+  with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(coord=coord)
+
+    for i in range(num):
+
+      next_image, next_label = get_next_batch(sess, train_image_batch, train_label_batch)
+      for ct, imname in enumerate(next_image):
+        im = imname
+        if (im.ndim < 3):
+          im = np.expand_dims(im, 2)
+          im = np.concatenate((im, im, im), 2)
+
+        if (im.shape[2] > 3):
+          im = im[:, :, 0:3]
+
+        #patches = random_patch(im, hsize, wsize, num_patches)
+        patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
+        totalim = []
+        for numbercrops in range(len(patches)):
+          totalim.append(np.zeros((batchsize, hsize, wsize, 3)))
+        # here need to average over 5 crops instead of one
+        for crop in range(len(patches)):
+          imcropped = patches[crop]
+          imcropped = imcropped[:, :, [2, 1, 0]]  # RGB to BGR
+          imcropped = imcropped - imagenet_mean
+          totalim[crop][ct, :, :, :] = imcropped
+      predict_valuess = []
+      for crop in range(len(patches)):
+        predict_valuess.append(out)
+      predict_values = tf.reduce_mean(predict_valuess, axis=0)
+
+      totalim2 = np.zeros((len(patches), hsize, wsize, 3))
+      for i in range(len(totalim)):
+        totalim2[i,:,:,:]= totalim[i][0,:,:,:]
+
+      print(sess.run([train_op, loss], feed_dict={labels_placeholder: [next_label[0]], x: totalim2}))
+
+    coord.request_stop()
+    coord.join(threads)
+
+
 if __name__=='__main__':
-  run3(path='/Users/apple/BreaKHis_data/')
+  #run3(path='/Users/apple/BreaKHis_data/')
+  run_training(path='/Users/apple/BreaKHis_data/')
