@@ -203,6 +203,17 @@ def run3(path='./BreaKHis_data'):
         #if( next_label[ct] in ind):
           #top5corr+=1.0/(num*batchsize) #times the number of crops
       '''
+
+      labels_placeholder = tf.placeholder(tf.int64, shape=(batch_size))
+      preds_placeholder = tf.placeholder(tf.float64, shape=(batch_size))
+      cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels_placeholder, logits=preds_placeholder, name='cross-entropy')
+      loss =tf.reduce_mean(cross_entropy, name='cross-entropy_mean')
+
+      optimizer = tf.train.AdamOptimizer(learning_rate=0.000001, beta1=0.9, beta2=0.9, epsilon=(1.0/2014.0), name='Adam')
+      train_op = optimizer.minimize(loss)
+      sess.run([train_op, loss], feed_dict={labels_placeholder: next_label, preds_placeholder:predict_values})
+
+
     coord.request_stop()
     coord.join(threads)
   return None
