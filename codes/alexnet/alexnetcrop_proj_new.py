@@ -204,7 +204,7 @@ def run3(path='./BreaKHis_data'):
 
 
 def run_training(path='./BreaKHis_data'):
-  num = 500  # 500 or 200
+  num = 1016  # 500 or 200
   batchsize = 260 ###
   num_classes = 2
 
@@ -243,8 +243,8 @@ def run_training(path='./BreaKHis_data'):
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
 
-    for i in range(num):
-
+    for j in range(num):
+      print ('No.', j,' out of ',num)
       next_image, next_label = get_next_batch(sess, train_image_batch, train_label_batch)
       for ct, imname in enumerate(next_image):
         im = imname
