@@ -98,8 +98,8 @@ def run_training(path='./BreaKHis_data/'):
   num_classes = 2
   epoch = 1
 
-  num_patches = 1
-  batchsize = 1
+  num_patches = 2
+  batchsize = 2
   keep_prob = 0.9
   skip_layer = []
   is_training = True
@@ -142,6 +142,8 @@ def run_training(path='./BreaKHis_data/'):
 
       #print ('Next label: ', next_label)
       #print ('Next image: ', next_image.shape)
+
+
 
       for ct, imname in enumerate(next_image):
         im = imname
