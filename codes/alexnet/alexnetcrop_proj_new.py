@@ -162,7 +162,8 @@ def run_training(path='./BreaKHis_data/'):
     coord.join(threads)
 
 
-def run_testing(path='./BreaKHis_data/'):
+def run_testing(path='./BreaKHis_data/', model_path='./tmp/model.ckpt'):
+  accuracy = 0
   num_classes = 2
   epoch = 1
 
@@ -183,13 +184,18 @@ def run_testing(path='./BreaKHis_data/'):
 
   x = tf.placeholder(tf.float32, [260, hsize, wsize, 3])
   net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path='DEFAULT')
-  out = net.fc8
   #labels_placeholder = tf.placeholder(tf.int64, shape=(1))
-  pred = [tf.reduce_mean(net.fc8,axis=0)]
+  prob = tf.nn.softmax(net.fc8)
+  pred = [tf.reduce_mean(prob,axis=0)]
 
   with tf.Session() as sess:
     init = tf.global_variables_initializer()
     sess.run(init)
+    # restore session weights
+    saver = tf.train.Saver()
+    saver.restore(sess, model_path)
+    print("Model restored from file: %s" % save_path)
+
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
 
@@ -213,16 +219,19 @@ def run_testing(path='./BreaKHis_data/'):
         patches = patches - imagenet_mean
         print ('Patches: ', np.array(patches).shape)
 
-      # predict_valuess = []
-      # for crop in range(len(patches)):
-        # predict_valuess.append(out)
-      # predict_values = tf.reduce_mean(predict_valuess, axis=0)
+        pred_label = np.argmax(sess.run([pred], feed_dict={x: patches})[0][0])
+        print("predicted lable: ", pred_label)
 
-      print ('Loss: ', sess.run([out], feed_dict={x: patches}))
+        if(next_label[0]==pred_label):
+          accuracy +=1
+
       print ('Time elapsed: ', time.time()-tic)
 
     coord.request_stop()
     coord.join(threads)
+    print("Total test set accuracy for ", test_set_size, " samples is: ", accuracy/test_set_size)
+    
 
 if __name__=='__main__':
   run_training(path='/Users/apple/BreaKHis_data/')
+  #run_testing(path='./BreaKHis_data/', model_path='./tmp/model.ckpt')
