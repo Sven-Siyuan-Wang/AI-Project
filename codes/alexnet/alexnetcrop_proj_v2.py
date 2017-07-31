@@ -98,7 +98,7 @@ def run_training(path='./BreaKHis_data/'):
   num_classes = 2
   epoch = 1
 
-  num_patches = 1
+  num_patches = 260
   batchsize = 1
   keep_prob = 0.9
   skip_layer = []
@@ -113,20 +113,17 @@ def run_training(path='./BreaKHis_data/'):
   sliding_window_h = 32
   sliding_window_w = 32
 
-  x = tf.placeholder(tf.float32, [num_patches, hsize, wsize, 3])
-  labels_placeholder = tf.placeholder(tf.int64, shape=(num_patches))
+  x = tf.placeholder(tf.float32, [260, hsize, wsize, 3])
   net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path='DEFAULT')
-  y_pred = tf.nn.softmax(net.fc8)
-  y_pred_cls = tf.argmax(y_pred, dimension=1)
-
-  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=net.fc8,
+  out = net.fc8
+  labels_placeholder = tf.placeholder(tf.int64, shape=(1))
+  pred = [tf.reduce_mean(net.fc8,axis=0)]
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred,
                                                                  labels=labels_placeholder,
                                                                  name='cross-entropy')
   loss = tf.reduce_mean(cross_entropy, name='cross-entropy_mean', axis=0)
   optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
   train_op = optimizer.minimize(loss)
-  correct_prediction = tf.equal(y_pred_cls, labels_placeholder)
-  accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 
   with tf.Session() as sess:
@@ -137,26 +134,47 @@ def run_training(path='./BreaKHis_data/'):
 
     for j in range(epoch*train_set_size):
       tic = time.time()
-      #print ('\n======= No.', j,' out of ',epoch*train_set_size, '=======')
+      print ('\n======= No.', j,' out of ',epoch*train_set_size, '=======')
       next_image, next_label = get_next_batch(sess, train_image_batch, train_label_batch)
-
-      #print ('Next label: ', next_label)
-      #print ('Next image: ', next_image.shape)
-
+      print ('Next label: ', next_label)
+      print ('Next image: ', next_image.shape)
       for ct, imname in enumerate(next_image):
         im = imname
+        if (im.ndim < 3):
+          im = np.expand_dims(im, 2)
+          im = np.concatenate((im, im, im), 2)
 
-        patches = random_patch(imname, hsize, wsize, num_patches)
-        #patches = sliding_patch(imname, hsize, wsize, sliding_window_h, sliding_window_w)
+        if (im.shape[2] > 3):
+          im = im[:, :, 0:3]
+
+        #patches = random_patch(im, hsize, wsize, num_patches)
+        patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
         patches = patches - imagenet_mean
+        print ('Patches: ', np.array(patches).shape)
 
-      sess.run(train_op, feed_dict={labels_placeholder: next_label, x: patches})
-      #print ('Time elapsed: ', time.time()-tic)
-      if j % 100 == 0:
-        acc = sess.run(accuracy, feed_dict={labels_placeholder: next_label, x: patches})
-        msg = "Optimization Iteration: {0:>6}, Training Accuracy: {1:>6.1%}"
-        print(msg.format(j + 1, acc))
-        print('Time elapsed for 1 sample: ', time.time() - tic)
+      # predict_valuess = []
+      # for crop in range(len(patches)):
+        # predict_valuess.append(out)
+      # predict_values = tf.reduce_mean(predict_valuess, axis=0)
+
+      print ('Loss: ', sess.run([train_op, loss], feed_dict={labels_placeholder: next_label, x: patches}))
+      print ('Time elapsed: ', time.time()-tic)
+
+      # val_image, val_label = get_next_batch(sess, val_image_batch, val_label_batch)
+      # for ct, imname in enumerate(next_image):
+      #   im = imname
+      #   if (im.ndim < 3):
+      #     im = np.expand_dims(im, 2)
+      #     im = np.concatenate((im, im, im), 2)
+
+      #   if (im.shape[2] > 3):
+      #     im = im[:, :, 0:3]
+
+      #   #patches = random_patch(im, hsize, wsize, num_patches)
+      #   patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
+      #   patches = patches - imagenet_mean
+      # print ('Validation label: ', val_label)
+      # print ('Validation pred: \n', sess.run([pred], feed_dict={x: patches}))
 
     coord.request_stop()
     coord.join(threads)
@@ -225,4 +243,4 @@ def run_testing(path='./BreaKHis_data/'):
     coord.join(threads)
 
 if __name__=='__main__':
-  run_training(path='/Users/apple/BreaKHis_data/')
+  run_training(path='./BreaKHis_data/')
