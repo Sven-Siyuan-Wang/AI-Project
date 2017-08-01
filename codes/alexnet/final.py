@@ -75,7 +75,7 @@ def load_image(path, split, res, part, BATCH_SIZE = 5):
     images = test_images
     labels = test_labels
   
-  image_queue, label = tf.train.slice_input_producer([images, labels], shuffle=False)
+  image_queue, label = tf.train.slice_input_producer([images, labels], shuffle=True)
   value = tf.read_file(image_queue)
 
   image = tf.image.decode_png(value, channels=NUM_CHANNELS)
@@ -114,15 +114,17 @@ def get_next_batch(sess, image_batch, label_batch, batchsize, num_patches, hsize
   return all_images, all_labels
 
 
-def run_training(path='./BreaKHis_data/', model_path='./model.ckpt'):
+def run_training(path='./BreaKHis_data/', model_path='./model/model.ckpt'):
 
   num_classes = 2
+
   epoch = 10
   batchsize = 10
   hsize = 64
   wsize = 64
   num_patches = 500
   num_minibatch = 20
+
   minibatchsize = int(np.ceil(num_patches * batchsize / num_minibatch))
   keep_prob = 0.9
   skip_layer = []
@@ -141,7 +143,9 @@ def run_training(path='./BreaKHis_data/', model_path='./model.ckpt'):
                                                                  labels=labels_placeholder,
                                                                  name='cross-entropy')
   loss = tf.reduce_mean(cross_entropy, name='cross-entropy_mean', axis=0)
+
   optimizer = tf.train.AdamOptimizer(learning_rate=0.000001, beta1=0.9, beta2=0.9, epsilon=0.0001)
+
   train_op = optimizer.minimize(loss)
   correct_prediction = tf.equal(y_pred_cls, labels_placeholder)
   accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -166,8 +170,10 @@ def run_training(path='./BreaKHis_data/', model_path='./model.ckpt'):
                                               batchsize, num_patches, hsize, wsize)
 
       for mini in range(num_minibatch):
+
         #tic = time.time()
         #print ('Minibatch ',mini)
+
         if (mini+1) * minibatchsize > len(all_images):
           mini_images = all_images[-minibatchsize:]
           mini_labels = all_labels[-minibatchsize:]
@@ -180,14 +186,15 @@ def run_training(path='./BreaKHis_data/', model_path='./model.ckpt'):
         acc = sess.run(accuracy, feed_dict={labels_placeholder: mini_labels, x: mini_images})
         msg = "Optimization Iteration: {0:>6}, Training Accuracy: {1:>6.1%}"
         print(msg.format(j + 1, acc))
-      print('Time total: ', time.time() - tic)
 
-    save_path = saver.save(sess, model_path)
+      print('Time total: ', time.time() - tic)
+      save_path = saver.save(sess, model_path+str(j))
+
     coord.request_stop()
     coord.join(threads)
 
 
-def run_testing(path='./BreaKHis_data/', model_path='./model.ckpt'):
+def run_testing(path='./BreaKHis_data/', model_path='./model/model.ckpt'):
   accuracy = 0
   num_classes = 2
 
@@ -221,9 +228,10 @@ def run_testing(path='./BreaKHis_data/', model_path='./model.ckpt'):
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
-    tic = time.time()
+
     for j in range(test_set_size):
-      #tic = time.time()
+      tic = time.time()
+
       print ('\n======= No.', j,' out of ',test_set_size, '=======')
       next_image = sess.run(test_image_batch)
       next_label = sess.run(test_label_batch)
@@ -240,7 +248,7 @@ def run_testing(path='./BreaKHis_data/', model_path='./model.ckpt'):
         if(next_label[0]==pred_label):
           accuracy += 1
 
-      print ('Time total: ', time.time()-tic)
+      print ('Time elapsed: ', time.time()-tic)
 
     coord.request_stop()
     coord.join(threads)
@@ -248,6 +256,6 @@ def run_testing(path='./BreaKHis_data/', model_path='./model.ckpt'):
     
 
 if __name__=='__main__':
-  #run_training(path='./BreaKHis_data/')
+  run_training(path='./BreaKHis_data/')
   tf.reset_default_graph()
   run_testing(path='./BreaKHis_data/')
