@@ -159,7 +159,8 @@ def run_training(path='./BreaKHis_data/', model_path='./model/model.ckpt'):
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
 
-    iterations = epoch * int(train_set_size/batchsize)
+    iterPerEpoch = int(train_set_size/batchsize)
+    iterations = epoch * iterPerEpoch
 
     tic = time.time()
     for j in range(iterations):
@@ -188,7 +189,8 @@ def run_training(path='./BreaKHis_data/', model_path='./model/model.ckpt'):
         print(msg.format(j + 1, acc))
 
       print('Time total: ', time.time() - tic)
-      save_path = saver.save(sess, model_path+str(j))
+      if(j%iterPerEpoch == 0):
+        save_path = saver.save(sess, model_path+str(j/iterPerEpoch))
 
     coord.request_stop()
     coord.join(threads)
