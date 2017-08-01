@@ -2,20 +2,12 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 import tensorflow as tf
 import numpy as np
-import random
-import os
-
-import math
-from PIL import Image
 from numpy import int32
-
+import random
+import math
+import time
+from PIL import Image
 from alexnet_proj import *
-
-
-def preproc_py2(imname,shorterside):
-  pilimg = Image.open(imname)
-
-  return pilimg
 
 def random_patch(im,hsize,wsize,n):
   h = im.shape[0]
@@ -46,7 +38,6 @@ def sliding_patch(im,hsize,wsize,sliding_window_h,sliding_window_w):
       break
   return patches
 
-
 def load_image(path, split, res, part, BATCH_SIZE = 5):
   filename_train = path+'/split'+str(split)+'/'+str(res)+'X_train.txt'
   filename_val = path+'/split'+str(split)+'/'+str(res)+'X_val.txt'
@@ -57,7 +48,6 @@ def load_image(path, split, res, part, BATCH_SIZE = 5):
   train_labels = [int(x.strip().split(' ')[1]) for x in train]
   train_images = [path+x.strip().split(' ')[0] for x in train]
   print('Training set size: ' + str(len(train_images)))
-
 
   with open(filename_val) as f:
     val = f.readlines()
@@ -93,149 +83,71 @@ def load_image(path, split, res, part, BATCH_SIZE = 5):
   image.set_shape((IMAGE_HEIGHT, IMAGE_WIDTH, NUM_CHANNELS))
   image_batch, label_batch = tf.train.batch([image, label],batch_size=BATCH_SIZE,capacity=1)
 
-  return image_batch, label_batch
+  return image_batch, label_batch, len(images)
 
 
-def get_next_batch(sess, image_batch, label_batch):
-    
-    images = sess.run(image_batch)
-    labels = sess.run(label_batch)
+def get_next_batch(sess, image_batch, label_batch, batchsize, num_patches, hsize, wsize):
 
-    return images, labels
+  sliding_window_h = 32
+  sliding_window_w = 32 
 
-
-def run3(path='./BreaKHis_data'):
+  imagenet_mean = np.array([185., 182., 188.], dtype=np.float32)
   
-  num=500 # 500 or 200
-  batchsize=5
-  num_classes=2
+  next_image = sess.run(image_batch)
+  next_label = sess.run(label_batch)
+  all_labels = np.repeat(next_label, num_patches)
 
-  keep_prob=1.
-  skip_layer=[]
-  is_training=False
-  
-  imagenet_mean = np.array([104., 117., 123.], dtype=np.float32) 
-  
-  train_image_batch, train_label_batch = load_image(path, 1, 200, 'train', BATCH_SIZE=batchsize)
+  all_images = np.zeros((batchsize*num_patches,hsize,wsize,3))
 
-  with tf.Session() as sess:
-    hsize = 64  ###############################################################
-    wsize = 64  ###############################################################
-    x = tf.placeholder(tf.float32, [batchsize, hsize, wsize, 3])
-    net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path = 'DEFAULT')
-    out = net.fc8
-    
-    init = tf.global_variables_initializer()
-    sess.run(init)
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord)
+  for ct, imname in enumerate(next_image):
 
-    #net.load_initial_weights(sess)
-    
-    
+      patches = random_patch(imname, hsize, wsize, num_patches)
+      # patches = sliding_patch(imname, hsize, wsize, sliding_window_h, sliding_window_w)
+      patches = patches - imagenet_mean
 
-    top1corr=0
-    top5corr=0
-    for i in range(num):
-    
-      next_image,next_label = get_next_batch(sess, train_image_batch, train_label_batch)
-      #print (totalim.shape,lb.shape)
-      #print (lb)
-      for ct,imname in enumerate(next_image):
-        #print(ct,imname.shape)
-        #im=preproc_py2(imname,250)
-        im = imname
-        #print (im.shape)
-        #print (imname)
-        
-        if(im.ndim<3):
-          im=np.expand_dims(im,2)
-          im=np.concatenate((im,im,im),2)
-        
-        if(im.shape[2]>3):
-          im=im[:,:,0:3]
+      all_images[ct*num_patches:(ct+1)*num_patches,:,:,:] = patches
 
-        num_patches = 10
-        sliding_window_h = 32 ###############################################################
-        sliding_window_w = 32 ###############################################################
-        #patches = random_patch(im, hsize, wsize, num_patches)
-        patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
-        totalim = []
-        for numbercrops in range(len(patches)):
-          totalim.append(np.zeros((batchsize, hsize, wsize, 3)))
-        #here need to average over 5 crops instead of one
-        for crop in range(len(patches)):
-          imcropped = patches[crop]
-          imcropped=imcropped[:,:,[2,1,0]] #RGB to BGR
-          imcropped=imcropped-imagenet_mean
+  index = np.random.choice(range(batchsize*num_patches), batchsize*num_patches, replace=False)
+  all_images = all_images[index]
+  all_labels = all_labels[index]
 
-          #print (imcropped.shape,totalim[crop].shape)
-          totalim[crop][ct,:,:,:]=imcropped
-        #print(np.array(totalim).shape)
-      predict_valuess = []
-      for crop in range(len(patches)):
-        predict_valuess.append(sess.run(out, feed_dict={x: totalim[crop]}))
-        # has shape batchsize,numclasses
-      #print (len(patches))
-      #print(np.array(predict_valuess).shape)
-      predict_values = np.mean(predict_valuess,axis=0)
-
-      '''
-      for ct in range(len(next_image)):
-      
-        #ind = np.argpartition(predict_values[ct,:], -5)[-5:] #get highest ranked indices to check top 5 error
-        index=np.argmax(predict_values[ct,:]) #get highest ranked index to check top 1 error
-        #print(ind,predict_values[ct,ind],index)
-        
-
-        if(index==next_label[ct]):
-          top1corr+=1.0/(num*batchsize) #times the number of crops
-
-        #if( next_label[ct] in ind):
-          #top5corr+=1.0/(num*batchsize) #times the number of crops
-      '''
-    coord.request_stop()
-    coord.join(threads)
-  return None
-
-  #print ('np.max(predict_values)', np.max(predict_values))
-  #print ('classindex: ',np.argmax(predict_values))
-  #print ('classlabel: ', cls[np.argmax(predict_values)])
+  return all_images, all_labels
 
 
-def run_training(path='./BreaKHis_data'):
-  num = 1016  # 500 or 200
-  batchsize = 260 ###
+def run_training(path='./BreaKHis_data/', model_path='./model.ckpt'):
+
   num_classes = 2
-
-  num_patches = 5
-  batchsize = 260
-  keep_prob = 1.
+  epoch = 10
+  batchsize = 10
+  hsize = 64
+  wsize = 64
+  num_patches = 500
+  num_minibatch = 20
+  minibatchsize = int(np.ceil(num_patches * batchsize / num_minibatch))
+  keep_prob = 0.9
   skip_layer = []
   is_training = True
 
-  imagenet_mean = np.array([104., 117., 123.], dtype=np.float32)
 
-  train_image_batch, train_label_batch = load_image(path, 1, 200, 'train', BATCH_SIZE=batchsize)
-  hsize = 64  ###############################################################
-  wsize = 64  ###############################################################
-  sliding_window_h = 32  ###############################################################
-  sliding_window_w = 32  ###############################################################
+  train_image_batch, train_label_batch, train_set_size = load_image(path, 1, 200, 'train', BATCH_SIZE=batchsize)
+  
 
-  x = tf.placeholder(tf.float32, [batchsize, hsize, wsize, 3])
+  x = tf.placeholder(tf.float32, [minibatchsize, hsize, wsize, 3])
+  labels_placeholder = tf.placeholder(tf.int64, shape=(minibatchsize))
   net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path='DEFAULT')
-  out = net.fc8
-  labels_placeholder = tf.placeholder(tf.int64, shape=(1))
-  #preds_placeholder = tf.placeholder(tf.float64, shape=(batchsize))
-  pred = [tf.reduce_mean(net.fc8,axis=0)]
-  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred,
+  y_pred = tf.nn.softmax(net.fc8)
+  y_pred_cls = tf.argmax(y_pred, dimension=1)
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=net.fc8,
                                                                  labels=labels_placeholder,
                                                                  name='cross-entropy')
   loss = tf.reduce_mean(cross_entropy, name='cross-entropy_mean', axis=0)
-
-  optimizer = tf.train.AdamOptimizer(learning_rate=0.000001, beta1=0.9, beta2=0.9, epsilon=(1.0 / 2014.0),
-                                     name='Adam')
+  optimizer = tf.train.AdamOptimizer(learning_rate=0.000001, beta1=0.9, beta2=0.9, epsilon=0.0001)
   train_op = optimizer.minimize(loss)
+  correct_prediction = tf.equal(y_pred_cls, labels_placeholder)
+  accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+  saver = tf.train.Saver()
+
+
 
   with tf.Session() as sess:
     init = tf.global_variables_initializer()
@@ -243,44 +155,99 @@ def run_training(path='./BreaKHis_data'):
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord)
 
-    for j in range(num):
-      print ('No.', j,' out of ',num)
-      next_image, next_label = get_next_batch(sess, train_image_batch, train_label_batch)
-      for ct, imname in enumerate(next_image):
-        im = imname
-        if (im.ndim < 3):
-          im = np.expand_dims(im, 2)
-          im = np.concatenate((im, im, im), 2)
+    iterations = epoch * int(train_set_size/batchsize)
 
-        if (im.shape[2] > 3):
-          im = im[:, :, 0:3]
+    tic = time.time()
+    for j in range(iterations):
+     
+      print ('\n======= No.', j,' out of ',iterations, '=======')
+      
+      all_images, all_labels = get_next_batch(sess, train_image_batch, train_label_batch,
+                                              batchsize, num_patches, hsize, wsize)
 
-        #patches = random_patch(im, hsize, wsize, num_patches)
-        patches = sliding_patch(im, hsize, wsize, sliding_window_h, sliding_window_w)
-        totalim = []
-        for numbercrops in range(len(patches)):
-          totalim.append(np.zeros((batchsize, hsize, wsize, 3)))
-        # here need to average over 5 crops instead of one
-        for crop in range(len(patches)):
-          imcropped = patches[crop]
-          imcropped = imcropped[:, :, [2, 1, 0]]  # RGB to BGR
-          imcropped = imcropped - imagenet_mean
-          totalim[crop][ct, :, :, :] = imcropped
-      predict_valuess = []
-      for crop in range(len(patches)):
-        predict_valuess.append(out)
-      predict_values = tf.reduce_mean(predict_valuess, axis=0)
+      for mini in range(num_minibatch):
+        #tic = time.time()
+        #print ('Minibatch ',mini)
+        if (mini+1) * minibatchsize > len(all_images):
+          mini_images = all_images[-minibatchsize:]
+          mini_labels = all_labels[-minibatchsize:]
+        else:
+          mini_images = all_images[mini*minibatchsize : (mini+1)*minibatchsize]
+          mini_labels = all_labels[mini*minibatchsize : (mini+1)*minibatchsize]
 
-      totalim2 = np.zeros((len(patches), hsize, wsize, 3))
-      for i in range(len(totalim)):
-        totalim2[i,:,:,:]= totalim[i][0,:,:,:]
 
-      print(sess.run([train_op, loss], feed_dict={labels_placeholder: [next_label[0]], x: totalim2}))
+        sess.run(train_op, feed_dict={labels_placeholder: mini_labels, x: mini_images})
+        acc = sess.run(accuracy, feed_dict={labels_placeholder: mini_labels, x: mini_images})
+        msg = "Optimization Iteration: {0:>6}, Training Accuracy: {1:>6.1%}"
+        print(msg.format(j + 1, acc))
+      print('Time total: ', time.time() - tic)
 
+    save_path = saver.save(sess, model_path)
     coord.request_stop()
     coord.join(threads)
 
 
+def run_testing(path='./BreaKHis_data/', model_path='./model.ckpt'):
+  accuracy = 0
+  num_classes = 2
+
+  num_patches = 260
+  batchsize = 1
+  keep_prob = 0.9
+  skip_layer = []
+  is_training = True
+
+  imagenet_mean = np.array([185., 182., 188.], dtype=np.float32)
+
+  test_image_batch, test_label_batch, test_set_size = load_image(path, 1, 200, 'test', BATCH_SIZE=batchsize)
+  hsize = 64
+  wsize = 64
+  sliding_window_h = 32
+  sliding_window_w = 32
+
+  x = tf.placeholder(tf.float32, [num_patches, hsize, wsize, 3])
+  net = AlexNet(x, keep_prob, num_classes, skip_layer, is_training, weights_path='DEFAULT')
+  #labels_placeholder = tf.placeholder(tf.int64, shape=(1))
+  prob = tf.nn.softmax(net.fc8)
+  pred = [tf.reduce_mean(prob,axis=0)]
+
+  with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    # restore session weights
+    saver = tf.train.Saver()
+    saver.restore(sess, model_path)
+    print("Model restored from file: %s" % model_path)
+
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(coord=coord)
+    tic = time.time()
+    for j in range(test_set_size):
+      #tic = time.time()
+      print ('\n======= No.', j,' out of ',test_set_size, '=======')
+      next_image = sess.run(test_image_batch)
+      next_label = sess.run(test_label_batch)
+      for ct, imname in enumerate(next_image):
+
+        #patches = random_patch(imname, hsize, wsize, num_patches)
+        patches = sliding_patch(imname, hsize, wsize, sliding_window_h, sliding_window_w)
+        patches = patches - imagenet_mean
+        print ('Patches: ', np.array(patches).shape)
+
+        pred_label = np.argmax(sess.run([pred], feed_dict={x: patches})[0][0])
+        print("predicted lable: ", pred_label)
+
+        if(next_label[0]==pred_label):
+          accuracy += 1
+
+      print ('Time total: ', time.time()-tic)
+
+    coord.request_stop()
+    coord.join(threads)
+    print("Total test set accuracy for ", test_set_size, " samples is: ", accuracy/test_set_size)
+    
+
 if __name__=='__main__':
-  #run3(path='/Users/apple/BreaKHis_data/')
-  run_training(path='/Users/apple/BreaKHis_data/')
+  #run_training(path='./BreaKHis_data/')
+  tf.reset_default_graph()
+  run_testing(path='./BreaKHis_data/')
