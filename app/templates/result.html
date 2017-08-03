@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Little Fairy and Little Fresh Meat</title>
+    <title>AI Project</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="../static/styles/layout.css" rel="stylesheet" type="text/css" media="all">
@@ -11,16 +11,9 @@
 <div class="wrapper bgded overlay" style="background-image:url('images/demo/backgrounds/01.png');">
     <div id="pageintro" class="hoc clear">
         <article class="introtxt">
-
-            <h2 style="float: left" class="heading">Little Fairy's Clinic</h2><br>
-            <img src="../static/image.jpg"><br><br>
-
-            <form action="" method="post"
-                  enctype="multipart/form-data">
-                <input class="btn" type="file" name="file" accept="image/*" onchange="preview_image(event)">
-                <input class="btn inverse" type="submit"/><br><br>
-                <img id="output_image"/>
-            </form>
+            <h2 class="heading">Result</h2><br>
+            <p>{{result}}</p>
+            <a href="/" class="btn">Go Back</a>
         </article>
     </div>
 </div>

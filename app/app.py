@@ -1,21 +1,21 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, url_for, redirect
+
 
 app = Flask(__name__)
 app.config.from_object('config')
+filename = ""
 
 
-@app.route('/')
-@app.route('/index')
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    return render_template('index.html')
-
-
-@app.route('/uploader', methods=['GET', 'POST'])
-def upload_file():
+    if request.method == 'GET':
+        return render_template('index.html')
     if request.method == 'POST':
         f = request.files['file']
-        print f.readline()
-        return 'file uploaded successfully'
+
+        label = 1
+        diagnosis = "Positive" if label else "Negative"
+        return render_template('result.html', result=diagnosis)
 
 if __name__ == "__main__":
     app.run()
